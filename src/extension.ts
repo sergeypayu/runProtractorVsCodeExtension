@@ -13,14 +13,38 @@ export function activate(context: vscode.ExtensionContext) {
     const isTestSetRegex = /^((\s*)(describe)(\s*)\((\s*)('|"))/g;
     const testNameRegex = /(("|')(.*?)("|'))/;
 
-    let disposable = vscode.commands.registerCommand('extension.executeProtractorTest', (match) => {
+    let runTest = vscode.commands.registerCommand('extension.runProtractorTest', (match) => {
         let terminal: vscode.Terminal = window.terminals.length > 0 ? window.terminals[0] : window.createTerminal();
         terminal.show();
-        const protactorConfigPath = getProtractorConfig();
+        const protactorConfigPath = getProtractorConfig() || 'protractor.conf.js';
         const testFile = match.testFile;
         const testName = match.testName;
         terminal.sendText(`cd "${workspace.rootPath}"`);
-        terminal.sendText(`protractor ${protactorConfigPath} --specs='${testFile}' --grep="${testName}"`);  
+        terminal.sendText(`node_modules/protractor/bin/protractor ${protactorConfigPath} --disableChecks --specs=${testFile} --grep="${testName}"`);  
+    });
+    let debugTest = vscode.commands.registerCommand('extension.debugProtractorTest', (match) => {
+        const protactorConfigPath = getProtractorConfig() || 'protractor.conf.js';
+        const testFile = match.testFile;
+        const testName = match.testName;
+        vscode.debug.startDebugging(workspace.workspaceFolders ? workspace.workspaceFolders[0] : undefined, {
+            type: 'node',
+            name: 'Debug Jasmine Tests',
+            request: 'launch',
+			skipFiles: [
+                '<node_internals>/**'
+            ],
+            program: '${workspaceFolder}/node_modules/protractor/bin/protractor',
+            args:[
+                '${workspaceFolder}/' + protactorConfigPath,
+                '--disableChecks',
+                '--specs=' + testFile,
+                '--grep=' + testName
+            ],
+            resolveSourceMapLocations: [
+                '${workspaceFolder}/**',
+                '!**/node_modules/**'
+            ]
+		});
     });
 
     languages.forEach(language => {
@@ -42,7 +66,7 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        let matches: Match[] = [];
+        let lenses: vscode.CodeLens[] = [];
         var doc = window.activeTextEditor.document;
         
         for (let index = 0; index < doc.lineCount; index++) {
@@ -51,23 +75,36 @@ export function activate(context: vscode.ExtensionContext) {
                 const testNameMatch = line.match(testNameRegex);
                 let match: Match = {
                     range: new vscode.Range(new vscode.Position(index, 0), new vscode.Position(index, 5)),
-                    testName: testNameMatch ? testNameMatch[3] : "",
+                    testName: testNameMatch ? testNameMatch[3] : '',
                     testFile: doc.fileName,
                     isTestSet: isTestSetRegex.test(line)
                 };
-
-                matches.push(match);
+                if (match.isTestSet) {
+                    lenses.push(new vscode.CodeLens(match.range, {
+                        title: 'Run tests',
+                        command: 'extension.runProtractorTest',
+                        arguments: [ match ]
+                    }));
+                } else {
+                    lenses.push(new vscode.CodeLens(match.range, {
+                        title: 'Run test',
+                        command: 'extension.runProtractorTest',
+                        arguments: [ match ]
+                    }));
+                    lenses.push(new vscode.CodeLens(match.range, {
+                        title: 'Debug test',
+                        command: 'extension.debugProtractorTest',
+                        arguments: [ match ]
+                    }));
+                }
             }           
         }
 
-        return matches.map(match => new vscode.CodeLens(match.range, {
-            title: match.isTestSet ? 'Run tests' : 'Run test',
-            command: 'extension.executeProtractorTest',
-            arguments: [ match ]
-        }));
+        return lenses;
     }
 
-    context.subscriptions.push(disposable);
+    context.subscriptions.push(runTest);
+    context.subscriptions.push(debugTest);
 }
 
 export interface Match {
