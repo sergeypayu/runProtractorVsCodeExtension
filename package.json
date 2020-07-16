@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "publisher": "gabduss",
     "engines": {
-        "vscode": "^1.28.0"
+        "vscode": "^1.47.0"
     },
     "categories": [
         "Other"
@@ -43,7 +43,8 @@
         "vscode:prepublish": "npm run compile",
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./",
-        "test": "npm run compile && node ./node_modules/vscode/bin/test"
+        "test": "npm run compile && node ./node_modules/vscode/bin/test",
+        "package": "vsce package"
     },
     "devDependencies": {
         "typescript": "^3.5.3",
